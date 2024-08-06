@@ -5,7 +5,7 @@ import { ThemeProvider, CssBaseline, AppBar, Toolbar, Typography, Button, TextFi
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import SearchIcon from '@mui/icons-material/Search';
 import { signOut } from "firebase/auth";
-import { collection, getDocs, query, doc, setDoc, getDoc, deleteDoc, onSnapshot } from "firebase/firestore";
+import { collection, query, doc, setDoc, getDoc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { firestore, auth } from "@/firebase";
 import SignIn from "/app/sign-in";
@@ -88,21 +88,27 @@ export default function Home() {
     return url;
   };
 
-  const updateInventory = useCallback(async () => {
+  const updateInventory = useCallback((snapshot) => {
+    const inventoryList = snapshot.docs.map((doc) => ({
+      name: doc.id,
+      ...doc.data(),
+    }));
+    setInventory(inventoryList);
+    setFilteredInventory(inventoryList);
+  }, []);
+
+  useEffect(() => {
     if (user) {
-      try {
-        const snapshot = await getDocs(query(collection(firestore, `users/${user.uid}/inventory`)));
-        const inventoryList = snapshot.docs.map((doc) => ({
-          name: doc.id,
-          ...doc.data(),
-        }));
-        setInventory(inventoryList);
-        setFilteredInventory(inventoryList);
-      } catch (error) {
+      const q = query(collection(firestore, `users/${user.uid}/inventory`));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        updateInventory(snapshot);
+      }, (error) => {
         console.error("Error fetching inventory:", error);
-      }
+      });
+
+      return () => unsubscribe();
     }
-  }, [user]);
+  }, [user, updateInventory]);
 
   const removeItem = async (item) => {
     const docRef = doc(collection(firestore, `users/${user.uid}/inventory`), item);
@@ -122,7 +128,6 @@ export default function Home() {
       } else {
         await setDoc(docRef, { quantity: quantity - 1 }, { merge: true });
       }
-      updateInventory();
     }
   };
 
@@ -137,7 +142,6 @@ export default function Home() {
       let imageUrl = await uploadImage(file);
       await setDoc(docRef, { quantity: 1, imageUrl });
     }
-    updateInventory();
   };
 
   const editItem = async (item, newName) => {
@@ -149,14 +153,9 @@ export default function Home() {
         const itemData = docSnap.data();
         await setDoc(doc(firestore, `users/${user.uid}/inventory`, newName), itemData);
         await deleteDoc(docRef);
-        updateInventory();
       }
     }
   };
-
-  useEffect(() => {
-    updateInventory();
-  }, [user, updateInventory]);
 
   const debouncedSearch = useCallback(
     debounce((query) => {

@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ThemeProvider, CssBaseline, Box, Button, TextField, Typography, Link } from "@mui/material";
+import { ThemeProvider, CssBaseline, Box, Button, TextField, Typography, Link, CircularProgress } from "@mui/material";
 import theme from '/app/theme'; 
 import { auth } from "@/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
@@ -10,15 +10,18 @@ import logo from '/public/logo.png';
 export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState(""); // New state for confirm password
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState(null);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleSignIn = async () => {
+    setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
       setError(err.message);
+      setLoading(false);
     }
   };
 
@@ -27,10 +30,21 @@ export default function SignIn() {
       setError("Passwords do not match");
       return;
     }
+    setLoading(true);
     try {
       await createUserWithEmailAndPassword(auth, email, password);
     } catch (err) {
       setError(err.message);
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (isSignUp) {
+      handleSignUp();
+    } else {
+      handleSignIn();
     }
   };
 
@@ -45,6 +59,8 @@ export default function SignIn() {
         height="100vh" 
         gap={2} 
         sx={{ backgroundColor: "#EAE7DC", p: 3, boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)' }}
+        component="form"
+        onSubmit={handleSubmit}
       >
         <Image src={logo} alt="PantryGenie" width={60} height={60} />
         <Typography variant="h4" sx={{ fontWeight: 'bold', color: '#E98074' }}>
@@ -57,6 +73,7 @@ export default function SignIn() {
           sx={{ width: { xs: "100%", sm: "300px" }, mt: 2 }}
           variant="outlined"
           required
+          type="email"
         />
         <TextField
           label="Password"
@@ -82,10 +99,11 @@ export default function SignIn() {
         <Button 
           variant="contained" 
           color="primary" 
-          onClick={isSignUp ? handleSignUp : handleSignIn}
+          type="submit"
           sx={{ mt: 2, width: { xs: "100%", sm: "300px" }, bgcolor: "#E98074", '&:hover': { bgcolor: "#d46b63" } }}
+          disabled={loading}
         >
-          {isSignUp ? "Sign Up" : "Sign In"}
+          {loading ? <CircularProgress size={24} /> : isSignUp ? "Sign Up" : "Sign In"}
         </Button>
         <Link
           component="button"
