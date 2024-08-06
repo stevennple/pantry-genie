@@ -1,10 +1,11 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import debounce from "lodash.debounce";
 import { ThemeProvider, CssBaseline, AppBar, Toolbar, Typography, Button, TextField, Stack, Modal, Grid, Paper, Box, IconButton, Container, InputAdornment, useMediaQuery } from '@mui/material';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import SearchIcon from '@mui/icons-material/Search';
 import { signOut } from "firebase/auth";
-import { collection, getDocs, query, doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
+import { collection, getDocs, query, doc, setDoc, getDoc, deleteDoc, onSnapshot } from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { firestore, auth } from "@/firebase";
 import SignIn from "/app/sign-in";
@@ -75,6 +76,7 @@ export default function Home() {
   const [currentItem, setCurrentItem] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [file, setFile] = useState(null);
+  const [recipes, setRecipes] = useState([]); // State for recipes
 
   const storage = getStorage();
 
@@ -86,20 +88,21 @@ export default function Home() {
     return url;
   };
 
-  const updateInventory = async () => {
+  const updateInventory = useCallback(async () => {
     if (user) {
-      const snapshot = await getDocs(query(collection(firestore, `users/${user.uid}/inventory`)));
-      const inventoryList = [];
-      snapshot.forEach((doc) => {
-        inventoryList.push({
+      try {
+        const snapshot = await getDocs(query(collection(firestore, `users/${user.uid}/inventory`)));
+        const inventoryList = snapshot.docs.map((doc) => ({
           name: doc.id,
           ...doc.data(),
-        });
-      });
-      setInventory(inventoryList);
-      setFilteredInventory(inventoryList);
+        }));
+        setInventory(inventoryList);
+        setFilteredInventory(inventoryList);
+      } catch (error) {
+        console.error("Error fetching inventory:", error);
+      }
     }
-  };
+  }, [user]);
 
   const removeItem = async (item) => {
     const docRef = doc(collection(firestore, `users/${user.uid}/inventory`), item);
@@ -155,16 +158,23 @@ export default function Home() {
     updateInventory();
   }, [user, updateInventory]);
 
+  const debouncedSearch = useCallback(
+    debounce((query) => {
+      if (query) {
+        const filtered = inventory.filter((item) =>
+          item.name.toLowerCase().includes(query.toLowerCase())
+        );
+        setFilteredInventory(filtered);
+      } else {
+        setFilteredInventory(inventory);
+      }
+    }, 300),  // 300ms debounce
+    [inventory]
+  );
+
   useEffect(() => {
-    if (searchQuery) {
-      const filtered = inventory.filter((item) =>
-        item.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setFilteredInventory(filtered);
-    } else {
-      setFilteredInventory(inventory);
-    }
-  }, [searchQuery, inventory]);
+    debouncedSearch(searchQuery);
+  }, [searchQuery, debouncedSearch]);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -209,6 +219,21 @@ export default function Home() {
   const handleLogout = async () => {
     await signOut(auth);
     setUser(null);
+  };
+
+  const getRecipeSuggestions = async () => {
+    const ingredients = inventory.map(item => item.name);
+    try {
+      const response = await fetch('/api/get-recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ingredients }),
+      });
+      const data = await response.json();
+      setRecipes(data); // Set the recipe suggestions
+    } catch (error) {
+      console.error(error);
+    }
   };
 
   if (!user) {
@@ -282,7 +307,7 @@ export default function Home() {
             bgcolor: "transparent",
             p: 2,
             flexGrow: 1,
-            mt: 2.4, // Add more margin at the top
+            mt: 2.4,
           }}
         >
           <Button
@@ -298,6 +323,19 @@ export default function Home() {
             }}
           >
             Add Item
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={getRecipeSuggestions}
+            sx={{
+              bgcolor: "#E98074",
+              '&:hover': {
+                bgcolor: "#d46b63",
+              },
+            }}
+          >
+            Get Recipe Suggestions
           </Button>
           <Modal open={open} onClose={handleClose}>
             <Box
@@ -396,6 +434,34 @@ export default function Home() {
               />
             ))}
           </Stack>
+
+          <Container
+            maxWidth="md"
+            sx={{
+              mt: 4,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              bgcolor: "transparent",
+            }}
+          >
+            {recipes && recipes.map((recipe, index) => (
+              <Paper
+                key={index}
+                elevation={3}
+                sx={{
+                  p: 2,
+                  bgcolor: "#fff7e6",
+                  borderRadius: 2,
+                  boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
+                }}
+              >
+                <Typography variant="h6">Recipe Suggestion:</Typography>
+                <Typography>{recipe}</Typography>
+              </Paper>
+            ))}
+          </Container>
+
         </Container>
       </Box>
     </ThemeProvider>
