@@ -29,10 +29,12 @@ const InventoryItem = ({ item, onAdd, onRemove, onEdit }) => (
       }}
     >
       {item.imageUrl && (
-        <img
+        <Image
           src={item.imageUrl}
           alt={item.name}
-          style={{ width: "50px", height: "50px", borderRadius: "50%" }}
+          width={50}
+          height={50}
+          style={{ borderRadius: "50%" }}
         />
       )}
       <Box sx={{ textAlign: { xs: 'center', sm: 'left' } }}>
@@ -151,7 +153,7 @@ export default function Home() {
 
   useEffect(() => {
     updateInventory();
-  }, [user]);
+  }, [user, updateInventory]);
 
   useEffect(() => {
     if (searchQuery) {
@@ -221,7 +223,7 @@ export default function Home() {
         height="100vh"
         display="flex"
         flexDirection="column"
-        sx={{ backgroundColor: "#EAE7DC" }} // Light background color
+        sx={{ backgroundColor: "#EAE7DC" }}
       >
         <AppBar position="fixed" sx={{ zIndex: 1201 }}>
           <Toolbar>
@@ -231,7 +233,7 @@ export default function Home() {
                 PantryGenie
               </Typography>
             )}
-            <Box sx={{ flexGrow: 1.8, display: 'flex', mx: 1 }}>
+            <Box sx={{ flexGrow: 1.8, display: 'flex' }}>
               <TextField
                 variant="outlined"
                 placeholder="Search..."
@@ -280,7 +282,7 @@ export default function Home() {
             bgcolor: "transparent",
             p: 2,
             flexGrow: 1,
-            mt: 2.3, // Add more margin at the top
+            mt: 2.4, // Add more margin at the top
           }}
         >
           <Button
@@ -386,6 +388,7 @@ export default function Home() {
           <Stack width="100%" height="auto" spacing={2} overflow="auto">
             {filteredInventory.map((item) => (
               <InventoryItem
+                key={item.name}
                 item={item}
                 onAdd={addItem}
                 onRemove={removeItem}
