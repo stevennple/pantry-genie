@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import debounce from "lodash.debounce";
-import { ThemeProvider, CssBaseline, AppBar, Toolbar, Typography, Button, TextField, Stack, Modal, Grid, Paper, Box, IconButton, Container, InputAdornment, useMediaQuery } from '@mui/material';
+import { ThemeProvider, CssBaseline, AppBar, Toolbar, Typography, Button, TextField, Stack, Modal, Grid, Paper, Box, Container, InputAdornment, useMediaQuery } from '@mui/material';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import SearchIcon from '@mui/icons-material/Search';
 import { signOut } from "firebase/auth";
@@ -50,7 +49,7 @@ const InventoryItem = ({ item, onAdd, onRemove, onEdit }) => (
         </Button>
         <Button
           variant="contained"
-          sx={{ backgroundColor: "#E98074", color: "#fff" }}
+          sx={{ backgroundColor: "#E98074", color: "#000000" }}
           onClick={() => onRemove(item.name)}
           aria-label={`Remove ${item.name}`}
         >
@@ -77,6 +76,8 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [file, setFile] = useState(null);
   const [recipes, setRecipes] = useState([]); // State for recipes
+  const [isLoading, setIsLoading] = useState(false); // Loading state
+  const [hasFetchedRecipes, setHasFetchedRecipes] = useState(false); // Track if recipes have been fetched
 
   const storage = getStorage();
 
@@ -105,10 +106,10 @@ export default function Home() {
       }, (error) => {
         console.error("Error fetching inventory:", error);
       });
-
+  
       return () => unsubscribe();
     }
-  }, [user, updateInventory]);
+  }, [user, updateInventory]);  
 
   const removeItem = async (item) => {
     const docRef = doc(collection(firestore, `users/${user.uid}/inventory`), item);
@@ -157,6 +158,15 @@ export default function Home() {
     }
   };
 
+  // Custom debounce function
+  const debounce = (func, wait) => {
+    let timeout;
+    return (...args) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+  };
+
   const debouncedSearch = useCallback(
     debounce((query) => {
       if (query) {
@@ -170,10 +180,10 @@ export default function Home() {
     }, 300),  // 300ms debounce
     [inventory]
   );
-
+  
   useEffect(() => {
     debouncedSearch(searchQuery);
-  }, [searchQuery, debouncedSearch]);
+  }, [searchQuery, debouncedSearch]);  
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -220,21 +230,45 @@ export default function Home() {
     setUser(null);
   };
 
+  const stripMarkdown = (text) => {
+    return text.replace(/\*\*/g, '') // Removes all instances of '**'
+             .replace(/\*/g, '');  // Removes all instances of '*'
+  };
+
   const getRecipeSuggestions = async () => {
     const ingredients = inventory.map(item => item.name);
+    setIsLoading(true); // Set loading to true
     try {
-      const response = await fetch('/api/get-recipes', {
+      console.log("Sending ingredients to API:", ingredients); // Log ingredients
+      const response = await fetch('/api/get-recipes', { // Ensure the route is correct
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ingredients }),
       });
+  
+      if (!response.ok) {
+        throw new Error(`Error: ${response.statusText}`);
+      }
+  
       const data = await response.json();
-      setRecipes(data); // Set the recipe suggestions
+      console.log("Received recipes:", data); // Log response data
+      // Strip Markdown syntax from the recipe text
+      const processedRecipes = data.recipes.map(recipe => stripMarkdown(recipe));
+      setRecipes(processedRecipes || []);
+      setHasFetchedRecipes(true); // Set hasFetchedRecipes to true
     } catch (error) {
-      console.error(error);
+      console.error("Failed to fetch recipe suggestions:", error);
+      alert(`Failed to fetch recipe suggestions: ${error.message}`); // Show error message to the user
+    } finally {
+      setIsLoading(false); // Set loading to false
     }
   };
 
+  const generateNewRecipeSuggestions = async () => {
+    setRecipes([]); // Clear current suggestions
+    await getRecipeSuggestions(); // Fetch new suggestions
+  };
+  
   if (!user) {
     return <SignIn />;
   }
@@ -252,44 +286,25 @@ export default function Home() {
         <AppBar position="fixed" sx={{ zIndex: 1201 }}>
           <Toolbar>
             <Image src={logo} alt="PantryGenie" width={40} height={40} sx={{ mr: 1 }} />
-            {!isMobile && (
-              <Typography variant="h6" sx={{ flexGrow: 1, ml: 1, fontWeight: 'bold' }}>
-                PantryGenie
-              </Typography>
-            )}
-            <Box sx={{ flexGrow: 1.8, display: 'flex' }}>
-              <TextField
-                variant="outlined"
-                placeholder="Search..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                size="small"
-                sx={{
-                  backgroundColor: "white",
-                  borderRadius: 1,
-                  width: { xs: '100%', sm: '50%' },
-                  '& .MuiOutlinedInput-root': {
-                    '& fieldset': {
-                      borderColor: 'transparent',
-                    },
-                    '&:hover fieldset': {
-                      borderColor: 'transparent',
-                    },
-                    '&.Mui-focused fieldset': {
-                      borderColor: 'transparent',
-                    },
-                  },
-                }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </Box>
-            <Button color="inherit" onClick={handleLogout} aria-label="Logout">
+            <Typography variant="h6" sx={{ flexGrow: 1, ml: 2, fontWeight: 'bold' }}>
+              PantryGenie
+            </Typography>
+            <Button
+              color="inherit"
+              onClick={handleLogout}
+              aria-label="Logout"
+              sx={{
+                bgcolor: "#E98074",
+                '&:hover': {
+                  bgcolor: "#d46b63",
+                },
+                color: "#000000",
+                textTransform: "none",
+                boxShadow: "0 1.4px 1px 1px rgba(0, 0, 0, 0.2)", 
+                borderRadius: 2, 
+                padding: "6px 16px", 
+              }}
+            >
               Logout
             </Button>
           </Toolbar>
@@ -309,33 +324,89 @@ export default function Home() {
             mt: 2.4,
           }}
         >
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={handleOpen}
-            startIcon={<AddCircleIcon />}
+          <TextField
+            variant="outlined"
+            placeholder="Search..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            size="small"
             sx={{
-              bgcolor: "#D8C3A5",
-              '&:hover': {
-                bgcolor: "#d46b63",
-              },
+              backgroundColor: "white",
+              borderRadius: 1,
+              width: '100%',
+              '& .MuiOutlinedInput-root': {
+                '& fieldset': {
+                  borderColor: 'transparent',
+                },
+                '&:hover fieldset': {
+                  borderColor: 'transparent',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: 'transparent',
+                },
+              }
             }}
-          >
-            Add Item
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={getRecipeSuggestions}
-            sx={{
-              bgcolor: "#E98074",
-              '&:hover': {
-                bgcolor: "#d46b63",
-              },
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
             }}
-          >
-            Get Recipe Suggestions
-          </Button>
+          />
+          <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={handleOpen}
+              startIcon={<AddCircleIcon />}
+              sx={{
+                bgcolor: "#D8C3A5",
+                '&:hover': {
+                  backgroundColor: "#978873", // Darker beige color
+                },
+              }}
+            >
+              Add Item
+            </Button>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={getRecipeSuggestions}
+              disabled={isLoading} // Disable the button when loading
+              sx={{
+                bgcolor: "#E98074",
+                color: "#000000", 
+                '&:hover': {
+                  backgroundColor: "#978873", // Darker beige color
+                },
+              }}
+            >
+              {isLoading ? "Generating..." : "Get Recipe Suggestions"}
+            </Button>
+          </Box>
+          {hasFetchedRecipes && (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={generateNewRecipeSuggestions}
+              disabled={isLoading} // Disable the button when loading
+              sx={{
+                bgcolor: "#E98074",
+                color: "#fff", // Set text color to white
+                '&:hover': {
+                  backgroundColor: "#C7B198", // Darker beige color
+                },
+              }}
+            >
+              {isLoading ? "Generating..." : "Generate New Recipe Suggestions"}
+            </Button>
+          )}
+          {isLoading && (
+            <Typography variant="body1" sx={{ mt: 2 }}>
+              Generating recipe suggestions...
+            </Typography>
+          )}
           <Modal open={open} onClose={handleClose}>
             <Box
               position="absolute"
@@ -373,7 +444,7 @@ export default function Home() {
                 sx={{
                   bgcolor: "#E98074",
                   '&:hover': {
-                    bgcolor: "#d46b63",
+                    backgroundColor: "#C7B198", // Darker beige color
                   },
                 }}
               >
@@ -413,7 +484,7 @@ export default function Home() {
                 sx={{
                   bgcolor: "#E98074",
                   '&:hover': {
-                    bgcolor: "#d46b63",
+                    backgroundColor: "#C7B198", // Darker beige color
                   },
                 }}
               >
@@ -422,17 +493,28 @@ export default function Home() {
             </Box>
           </Modal>
 
-          <Stack width="100%" height="auto" spacing={2} overflow="auto">
-            {filteredInventory.map((item) => (
-              <InventoryItem
-                key={item.name}
-                item={item}
-                onAdd={addItem}
-                onRemove={removeItem}
-                onEdit={handleEditOpen}
-              />
-            ))}
-          </Stack>
+          <Box
+            sx={{
+              width: '100%',
+              maxHeight: '600px',
+              overflow: 'auto',
+              border: '1px solid #ddd',
+              borderRadius: '8px',
+              p: 2,
+            }}
+          >
+            <Stack width="100%" spacing={2}>
+              {filteredInventory.map((item) => (
+                <InventoryItem
+                  key={item.name}
+                  item={item}
+                  onAdd={addItem}
+                  onRemove={removeItem}
+                  onEdit={handleEditOpen}
+                />
+              ))}
+            </Stack>
+          </Box>
 
           <Container
             maxWidth="md"
@@ -444,7 +526,7 @@ export default function Home() {
               bgcolor: "transparent",
             }}
           >
-            {recipes && recipes.map((recipe, index) => (
+            {Array.isArray(recipes) && recipes.map((recipe, index) => (
               <Paper
                 key={index}
                 elevation={3}
