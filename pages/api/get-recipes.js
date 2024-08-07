@@ -36,8 +36,13 @@ export default async function handler(req, res) {
         res.status(500).json({ error: "Invalid response from the OpenRouter API." });
       }
     } catch (error) {
-      console.error("Error fetching from OpenRouter API:", error.message);
-      res.status(500).json({ error: error.message });
+      if (error.response && error.response.status === 429) {
+        console.error("Rate limit exceeded:", error.response.data);
+        res.status(429).json({ error: "Rate limit exceeded. Please try again later." });
+      } else {
+        console.error("Error fetching from OpenRouter API:", error.message);
+        res.status(500).json({ error: error.message });
+      }
     }
   } else {
     res.setHeader('Allow', ['POST']);

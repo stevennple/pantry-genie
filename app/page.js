@@ -96,6 +96,7 @@ export default function Home() {
   const [predictions, setPredictions] = useState([]);
   const [selectedPredictions, setSelectedPredictions] = useState([]);
   const [analyzing, setAnalyzing] = useState(false);
+  const [isFrontCamera, setIsFrontCamera] = useState(true); // New state for camera type
   const webcamRef = useRef(null); // Reference to the webcam component
 
   const storage = getStorage();
@@ -205,6 +206,10 @@ export default function Home() {
     classifyImage(imageSrc);
     setWebcamOpen(false);
   }, [webcamRef]);
+
+  const toggleCamera = () => {
+    setIsFrontCamera((prev) => !prev);
+  };
 
   const removeItem = async (item) => {
     const docRef = doc(collection(firestore, `users/${user.uid}/inventory`), item);
@@ -632,9 +637,22 @@ export default function Home() {
                 ref={webcamRef}
                 screenshotFormat="image/jpeg"
                 width="100%"
-                videoConstraints={{ facingMode: "user" }}
+                videoConstraints={{ facingMode: isFrontCamera ? "user" : "environment" }} // Update facingMode
                 onUserMediaError={(error) => console.error("Webcam error:", error)}
               />
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={toggleCamera} // Add toggle camera button
+                sx={{
+                  bgcolor: "#E98074",
+                  '&:hover': {
+                    backgroundColor: "#C7B198",
+                  },
+                }}
+              >
+                {isFrontCamera ? "Switch to Rear Camera" : "Switch to Front Camera"}
+              </Button>
               <Button
                 variant="contained"
                 color="primary"
