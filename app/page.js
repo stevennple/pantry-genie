@@ -20,7 +20,7 @@ import NextImage from "next/image";
 import Webcam from "react-webcam";
 import theme from '/app/theme';
 import logo from '/public/logo.png';
-import * as mobilenet from '@tensorflow-models/mobilenet';
+import * as cocoSsd from '@tensorflow-models/coco-ssd';
 import '@tensorflow/tfjs';
 
 const InventoryItem = ({ item, onAdd, onRemove, onEdit }) => (
@@ -147,12 +147,13 @@ export default function Home() {
 
   const classifyImage = async (image) => {
     setAnalyzing(true);
+
     const img = document.createElement('img');
     img.src = image;
     img.onload = async () => {
       try {
-        const model = await mobilenet.load();
-        const predictions = await model.classify(img);
+        const model = await cocoSsd.load();
+        const predictions = await model.detect(img);
         setPredictions(predictions);
         setPredictionModalOpen(true);
       } catch (error) {
@@ -210,8 +211,8 @@ export default function Home() {
     setIsItemLoading(true);
     try {
       const imageUrl = await uploadImage(file);
-      for (const selectedClassName of selectedPredictions) {
-        await addItem(selectedClassName, imageUrl);
+      for (const selectedPrediction of selectedPredictions) {
+        await addItem(selectedPrediction.class, imageUrl);
       }
       setSelectedPredictions([]);
       setPredictionModalOpen(false);
@@ -222,9 +223,9 @@ export default function Home() {
     }
   };
 
-  const handlePredictionChange = (className, isChecked) => {
+  const handlePredictionChange = (prediction, isChecked) => {
     setSelectedPredictions((prevSelected) =>
-      isChecked ? [...prevSelected, className] : prevSelected.filter((item) => item !== className)
+      isChecked ? [...prevSelected, prediction] : prevSelected.filter((item) => item.class !== prediction.class)
     );
   };
 
@@ -826,12 +827,12 @@ export default function Home() {
               key={index}
               control={
                 <Checkbox
-                  checked={selectedPredictions.includes(prediction.className)}
-                  onChange={(e) => handlePredictionChange(prediction.className, e.target.checked)}
+                  checked={selectedPredictions.includes(prediction)}
+                  onChange={(e) => handlePredictionChange(prediction, e.target.checked)}
                   color="primary"
                 />
               }
-              label={`${prediction.className} (${(prediction.probability * 100).toFixed(2)}%)`}
+              label={`${prediction.class} (${(prediction.score * 100).toFixed(2)}%)`}
             />
           ))}
           <Button
