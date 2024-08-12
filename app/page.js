@@ -15,14 +15,6 @@ import logo from '/public/logo.png';
 import * as mobilenet from '@tensorflow-models/mobilenet';
 import '@tensorflow/tfjs';
 
-const knownFoodItems = [
-  'banana', 'apple', 'orange', 'pomegranate', 'tomato', 'potato', 'carrot', 'broccoli', 'cucumber', 'lettuce', 'pasta',
-  'spinach', 'grape', 'strawberry', 'blueberry', 'watermelon', 'melon', 'kiwi', 'pineapple', 'mango', 'peach', 'cherry',
-  'pear', 'plum', 'apricot', 'avocado', 'asparagus', 'eggplant', 'bell pepper', 'chili pepper', 'corn', 'peas', 'green beans',
-  'zucchini', 'squash', 'pumpkin', 'sweet potato', 'onion', 'garlic', 'ginger', 'lemon', 'lime', 'cabbage', 'cauliflower',
-  'mushroom', 'radish', 'beetroot', 'lettuce'
-].map(item => item.toLowerCase());
-
 const InventoryItem = ({ item, onAdd, onRemove, onEdit }) => (
   <Grid item xs={12} sm={6} md={4} key={item.name}>
     <Paper
@@ -90,14 +82,16 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [file, setFile] = useState(null);
   const [recipes, setRecipes] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isRecipeLoading, setIsRecipeLoading] = useState(false);
+  const [isItemLoading, setIsItemLoading] = useState(false);
   const [hasFetchedRecipes, setHasFetchedRecipes] = useState(false);
+  const [recipesFetched, setRecipesFetched] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
   const [predictions, setPredictions] = useState([]);
   const [selectedPredictions, setSelectedPredictions] = useState([]);
   const [analyzing, setAnalyzing] = useState(false);
-  const [isFrontCamera, setIsFrontCamera] = useState(true); // New state for camera type
-  const webcamRef = useRef(null); // Reference to the webcam component
+  const [isFrontCamera, setIsFrontCamera] = useState(true);
+  const webcamRef = useRef(null);
 
   const storage = getStorage();
 
@@ -150,12 +144,7 @@ export default function Home() {
     img.onload = async () => {
       try {
         const model = await mobilenet.load();
-        let predictions = await model.classify(img);
-        console.log(predictions);
-  
-        // Temporarily remove the filtering to include all predictions
-        // predictions = predictions.filter(prediction => knownFoodItems.includes(prediction.className.toLowerCase()));
-  
+        const predictions = await model.classify(img);
         setPredictions(predictions);
         setPredictionModalOpen(true);
       } catch (error) {
@@ -167,31 +156,52 @@ export default function Home() {
   };  
   
   const handleUploadImage = async () => {
-    if (file && imagePreview) {
-      await classifyImage(imagePreview);
-      setFile(null);
-      setImagePreview(null);
-      handleUploadClose();
+    setIsItemLoading(true);
+    try {
+      if (file && imagePreview) {
+        await classifyImage(imagePreview);
+        setFile(null);
+        setImagePreview(null);
+        handleUploadClose();
+      }
+    } finally {
+      setIsItemLoading(false);
     }
   };
 
   const handleAddItem = async () => {
-    if (itemName) {
-      await addItem(itemName);
-      setFile(null);
-      setImagePreview(null);
-      setItemName("");
-      handleClose();
+    setIsItemLoading(true);
+    try {
+      if (itemName) {
+        await addItem(itemName);
+        setFile(null);
+        setImagePreview(null);
+        setItemName("");
+        handleClose();
+      }
+    } finally {
+      setIsItemLoading(false);
     }
   };
 
   const handleSelectPrediction = async () => {
-    const imageUrl = await uploadImage(file);
-    for (const selectedClassName of selectedPredictions) {
-      await addItem(selectedClassName, imageUrl);
+    console.log("Starting to select predictions...");
+    setIsItemLoading(true);
+    try {
+      const imageUrl = await uploadImage(file);
+      console.log("Image uploaded, URL:", imageUrl);
+      for (const selectedClassName of selectedPredictions) {
+        console.log("Adding item:", selectedClassName);
+        await addItem(selectedClassName, imageUrl);
+      }
+      setSelectedPredictions([]);
+      setPredictionModalOpen(false);
+    } catch (error) {
+      console.error("Error during prediction selection:", error);
+    } finally {
+      setIsItemLoading(false);
+      console.log("Finished selecting predictions.");
     }
-    setSelectedPredictions([]);
-    setPredictionModalOpen(false);
   };
 
   const handlePredictionChange = (className, isChecked) => {
@@ -245,15 +255,20 @@ export default function Home() {
   };
 
   const editItem = async (item, newName) => {
-    if (item !== newName) {
-      const docRef = doc(collection(firestore, `users/${user.uid}/inventory`), item);
-      const docSnap = await getDoc(docRef);
+    setIsItemLoading(true);
+    try {
+      if (item !== newName) {
+        const docRef = doc(collection(firestore, `users/${user.uid}/inventory`), item);
+        const docSnap = await getDoc(docRef);
 
-      if (docSnap.exists()) {
-        const itemData = docSnap.data();
-        await setDoc(doc(firestore, `users/${user.uid}/inventory`, newName), itemData);
-        await deleteDoc(docRef);
+        if (docSnap.exists()) {
+          const itemData = docSnap.data();
+          await setDoc(doc(firestore, `users/${user.uid}/inventory`, newName), itemData);
+          await deleteDoc(docRef);
+        }
       }
+    } finally {
+      setIsItemLoading(false);
     }
   };
 
@@ -291,9 +306,9 @@ export default function Home() {
         setUser(null);
       }
     });
-
+  
     return () => unsubscribe();
-  }, []);
+  }, []);  
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
@@ -312,11 +327,16 @@ export default function Home() {
   const handleWebcamClose = () => setWebcamOpen(false);
 
   const handleEditItem = async () => {
-    if (currentItem && editItemName) {
-      await editItem(currentItem, editItemName);
-      setCurrentItem(null);
-      setEditItemName("");
-      handleEditClose();
+    setIsItemLoading(true);
+    try {
+      if (currentItem && editItemName) {
+        await editItem(currentItem, editItemName);
+        setCurrentItem(null);
+        setEditItemName("");
+        handleEditClose();
+      }
+    } finally {
+      setIsItemLoading(false);
     }
   };
 
@@ -326,16 +346,19 @@ export default function Home() {
   };
 
   const stripMarkdown = (text) => {
-    return text.replace(/\*\*/g, '') 
-    .replace(/\*/g, '');  
+    return text.replace(/##\s*/g, '')  // Removes '##' at the start of the text
+      .replace(/\*\*/g, '') // Removes "**" from the text
+      .replace(/\*/g, '');  
   };
+  
 
   const getRecipeSuggestions = async () => {
-    const ingredients = inventory.map(item => item.name);
-    setIsLoading(true); 
+    console.log("Fetching recipes...");
+    setIsRecipeLoading(true);
     try {
-      console.log("Sending ingredients to API:", ingredients); 
-      const response = await fetch('/api/get-recipes', { 
+      const ingredients = inventory.map(item => item.name);
+      console.log("Ingredients:", ingredients);
+      const response = await fetch('/api/get-recipes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ingredients }),
@@ -346,15 +369,17 @@ export default function Home() {
       }
   
       const data = await response.json();
-      console.log("Received recipes:", data); 
-      const processedRecipes = data.recipes.map(recipe => stripMarkdown(recipe));
+      const processedRecipes = Array.isArray(data.recipes) ? data.recipes.map(recipe => stripMarkdown(recipe)) : [stripMarkdown(data.recipes)];
       setRecipes(processedRecipes || []);
-      setHasFetchedRecipes(true); 
+      setHasFetchedRecipes(true);
+      setRecipesFetched(true);
+      console.log("Recipes fetched successfully.");
     } catch (error) {
       console.error("Failed to fetch recipe suggestions:", error);
-      alert(`Failed to fetch recipe suggestions: ${error.message}`); 
+      alert(`Failed to fetch recipe suggestions: ${error.message}`);
     } finally {
-      setIsLoading(false); 
+      setIsRecipeLoading(false);
+      console.log("Recipe fetching completed.");
     }
   };
 
@@ -460,6 +485,7 @@ export default function Home() {
                   backgroundColor: "#978873",
                 },
               }}
+              disabled={isItemLoading} // Disable only if item is being added/uploaded
             >
               Add Item
             </Button>
@@ -475,6 +501,7 @@ export default function Home() {
                   backgroundColor: "#978873",
                 },
               }}
+              disabled={isItemLoading} // Disable only if item is being added/uploaded
             >
               Upload Image
             </Button>
@@ -490,285 +517,64 @@ export default function Home() {
                   backgroundColor: "#978873",
                 },
               }}
+              disabled={isItemLoading} // Disable only if item is being added/uploaded
             >
               Use Camera
             </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={getRecipeSuggestions}
-              disabled={isLoading}
-              sx={{
-                bgcolor: "#E98074",
-                color: "#000000", 
-                '&:hover': {
-                  backgroundColor: "#978873",
-                },
-              }}
-            >
-              {isLoading ? "Generating..." : "Get Recipes"}
-            </Button>
+            {!recipesFetched ? (
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={getRecipeSuggestions}
+                disabled={isRecipeLoading}
+                sx={{
+                  bgcolor: "#E98074",
+                  color: "#000000", 
+                  '&:hover': {
+                    backgroundColor: "#978873",
+                  },
+                }}
+              >
+                {isRecipeLoading ? "Generating..." : "Get Recipes"}
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={generateNewRecipeSuggestions}
+                disabled={isRecipeLoading}
+                sx={{
+                  bgcolor: "#E98074",
+                  color: "#000000",
+                  '&:hover': {
+                    backgroundColor: "#C7B198",
+                  },
+                }}
+              >
+                {isRecipeLoading ? "Generating..." : "Get More Recipes"}
+              </Button>
+            )}
           </Box>
-          {hasFetchedRecipes && (
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={generateNewRecipeSuggestions}
-              disabled={isLoading}
-              sx={{
-                bgcolor: "#E98074",
-                color: "#fff",
-                '&:hover': {
-                  backgroundColor: "#C7B198",
-                },
-              }}
-            >
-              {isLoading ? "Generating..." : "Get More Recipes"}
-            </Button>
-          )}
-          {isLoading && (
-            <Typography variant="body1" sx={{ mt: 2 }}>
-              Generating recipe suggestions...
-            </Typography>
-          )}
-          <Modal open={open} onClose={handleClose}>
-            <Box
-              position="absolute"
-              top="50%"
-              left="50%"
-              width={isMobile ? '90%' : 400}
-              bgcolor="background.paper"
-              boxShadow={24}
-              p={4}
-              display="flex"
-              flexDirection="column"
-              gap={3}
-              sx={{
-                transform: "translate(-50%, -50%)",
-                borderRadius: 2,
-              }}
-            >
-              <Typography variant="h6" color="#000000">Add Item</Typography>
-              <TextField
-                label="Item Name"
-                value={itemName}
-                onChange={(e) => setItemName(e.target.value)}
-                fullWidth
-              />
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleAddItem}
+          
+          {/* Display recipes right under the buttons */}
+          <Box sx={{ width: '100%', mt: -2 }}>
+            {Array.isArray(recipes) && recipes.map((recipe, index) => (
+              <Paper
+                key={index}
+                elevation={3}
                 sx={{
-                  bgcolor: "#E98074",
-                  '&:hover': {
-                    backgroundColor: "#C7B198",
-                  },
+                  p: 2,
+                  bgcolor: "#fff7e6",
+                  borderRadius: 2,
+                  boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
+                  mt: 2
                 }}
               >
-                Add
-              </Button>
-            </Box>
-          </Modal>
-
-          <Modal open={uploadOpen} onClose={handleUploadClose}>
-            <Box
-              position="absolute"
-              top="50%"
-              left="50%"
-              width={isMobile ? '90%' : 400}
-              bgcolor="background.paper"
-              boxShadow={24}
-              p={4}
-              display="flex"
-              flexDirection="column"
-              gap={3}
-              sx={{
-                transform: "translate(-50%, -50%)",
-                borderRadius: 2,
-              }}
-            >
-              <Typography variant="h6" color="#000000">Upload Image</Typography>
-              <input
-                accept="image/*"
-                type="file"
-                onChange={handleFileChange}
-                style={{ marginTop: 10 }}
-              />
-              {imagePreview && (
-                <img src={imagePreview} alt="Preview" style={{ width: '100%', height: 'auto', marginTop: 10 }} />
-              )}
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleUploadImage}
-                sx={{
-                  bgcolor: "#E98074",
-                  '&:hover': {
-                    backgroundColor: "#C7B198",
-                  },
-                }}
-              >
-                Upload
-              </Button>
-            </Box>
-          </Modal>
-
-          <Modal open={webcamOpen} onClose={handleWebcamClose}>
-            <Box
-              position="absolute"
-              top="50%"
-              left="50%"
-              width={isMobile ? '90%' : 400}
-              bgcolor="background.paper"
-              boxShadow={24}
-              p={4}
-              display="flex"
-              flexDirection="column"
-              gap={3}
-              sx={{
-                transform: "translate(-50%, -50%)",
-                borderRadius: 2,
-              }}
-            >
-              <Typography variant="h6" color="#000000">Capture Image</Typography>
-              <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                width="100%"
-                videoConstraints={{ facingMode: isFrontCamera ? "user" : "environment" }} // Update facingMode
-                onUserMediaError={(error) => console.error("Webcam error:", error)}
-              />
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={toggleCamera} // Add toggle camera button
-                sx={{
-                  bgcolor: "#E98074",
-                  '&:hover': {
-                    backgroundColor: "#C7B198",
-                  },
-                }}
-              >
-                {isFrontCamera ? "Switch to Rear Camera" : "Switch to Front Camera"}
-              </Button>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleCapture}
-                sx={{
-                  bgcolor: "#E98074",
-                  '&:hover': {
-                    backgroundColor: "#C7B198",
-                  },
-                }}
-              >
-                Capture
-              </Button>
-            </Box>
-          </Modal>
-
-          <Modal open={editOpen} onClose={handleEditClose}>
-            <Box
-              position="absolute"
-              top="50%"
-              left="50%"
-              width={isMobile ? '90%' : 400}
-              bgcolor="background.paper"
-              boxShadow={24}
-              p={4}
-              display="flex"
-              flexDirection="column"
-              gap={3}
-              sx={{
-                transform: "translate(-50%, -50%)",
-                borderRadius: 2,
-              }}
-            >
-              <Typography variant="h6" color="primary">Edit Item</Typography>
-              <TextField
-                label="New Item Name"
-                value={editItemName}
-                onChange={(e) => setEditItemName(e.target.value)}
-                fullWidth
-                InputProps={{
-                  style: {
-                    color: 'black',
-                  },
-                }}
-              />
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleEditItem}
-                sx={{
-                  bgcolor: "#E98074",
-                  '&:hover': {
-                    backgroundColor: "#C7B198",
-                  },
-                }}
-              >
-                Save
-              </Button>
-            </Box>
-          </Modal>
-
-          <Modal open={predictionModalOpen} onClose={() => setPredictionModalOpen(false)}>
-            <Box
-              position="absolute"
-              top="50%"
-              left="50%"
-              width={isMobile ? '90%' : 400}
-              bgcolor="background.paper"
-              boxShadow={24}
-              p={4}
-              display="flex"
-              flexDirection="column"
-              gap={3}
-              sx={{
-                transform: "translate(-50%, -50%)",
-                borderRadius: 2,
-              }}
-            >
-              <Typography variant="h6" color="#000000">Select Correct Items</Typography>
-              {predictions.map((prediction, index) => (
-                <FormControlLabel
-                  key={index}
-                  control={
-                    <Checkbox
-                      checked={selectedPredictions.includes(prediction.className)}
-                      onChange={(e) => handlePredictionChange(prediction.className, e.target.checked)}
-                      color="primary"
-                    />
-                  }
-                  label={`${prediction.className} (${(prediction.probability * 100).toFixed(2)}%)`}
-                />
-              ))}
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={handleSelectPrediction}
-                sx={{
-                  bgcolor: "#E98074",
-                  '&:hover': {
-                    backgroundColor: "#C7B198",
-                  },
-                }}
-              >
-                Confirm Selection
-              </Button>
-            </Box>
-          </Modal>
-
-          {analyzing && (
-            <Box display="flex" alignItems="center" mt={2}>
-              <CircularProgress size={24} />
-              <Typography variant="body1" sx={{ ml: 2 }}>
-                Analyzing the image, please wait...
-              </Typography>
-            </Box>
-          )}
+                <Typography variant="h6" sx={{ fontWeight: 'bold' }}>Recipe Suggestion:</Typography>
+                <Typography>{stripMarkdown(recipe)}</Typography>
+              </Paper>
+            ))}
+          </Box>
 
           <Box
             sx={{
@@ -792,33 +598,6 @@ export default function Home() {
               ))}
             </Stack>
           </Box>
-
-          <Container
-            maxWidth="md"
-            sx={{
-              mt: 4,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2,
-              bgcolor: "transparent",
-            }}
-          >
-            {Array.isArray(recipes) && recipes.map((recipe, index) => (
-              <Paper
-                key={index}
-                elevation={3}
-                sx={{
-                  p: 2,
-                  bgcolor: "#fff7e6",
-                  borderRadius: 2,
-                  boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)",
-                }}
-              >
-                <Typography variant="h6">Recipe Suggestion:</Typography>
-                <Typography>{stripMarkdown(recipe)}</Typography>
-              </Paper>
-            ))}
-          </Container>
 
         </Container>
       </Box>
