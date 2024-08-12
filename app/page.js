@@ -1,17 +1,25 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ThemeProvider, CssBaseline, AppBar, Toolbar, Typography, Button, TextField, Stack, Modal, Grid, Paper, Box, Container, InputAdornment, useMediaQuery, Checkbox, FormControlLabel, CircularProgress } from '@mui/material';
+import {
+  ThemeProvider, CssBaseline, AppBar, Toolbar, Typography, Button, TextField, Stack,
+  Modal, Grid, Paper, Box, Container, InputAdornment, useMediaQuery, Checkbox,
+  CircularProgress, FormControlLabel
+} from '@mui/material';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import SearchIcon from '@mui/icons-material/Search';
 import { signOut } from "firebase/auth";
-import { collection, query, doc, setDoc, getDoc, deleteDoc, onSnapshot } from "firebase/firestore";
-import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
+import {
+  collection, query, doc, setDoc, getDoc, deleteDoc, onSnapshot
+} from "firebase/firestore";
+import {
+  getStorage, ref, uploadBytes, getDownloadURL, deleteObject
+} from "firebase/storage";
 import { firestore, auth } from "@/firebase";
 import SignIn from "/app/sign-in";
 import NextImage from "next/image";
 import Webcam from "react-webcam";
-import theme from '/app/theme'; 
-import logo from '/public/logo.png'; 
+import theme from '/app/theme';
+import logo from '/public/logo.png';
 import * as mobilenet from '@tensorflow-models/mobilenet';
 import '@tensorflow/tfjs';
 
@@ -120,20 +128,20 @@ export default function Home() {
       }, (error) => {
         console.error("Error fetching inventory:", error);
       });
-  
+
       return () => unsubscribe();
     }
   }, [user, updateInventory]);
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setFile(file);
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      setFile(selectedFile);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImagePreview(reader.result);
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(selectedFile);
     }
   };
 
@@ -150,11 +158,24 @@ export default function Home() {
       } catch (error) {
         console.error("Error classifying image:", error);
       } finally {
-        setAnalyzing(false);
+        setAnalyzing(false); // Ensure this happens after everything is done
       }
     };
-  };  
-  
+  };
+
+  // Handle capturing image from webcam
+  const handleCapture = useCallback(() => {
+    const imageSrc = webcamRef.current.getScreenshot();
+    setImagePreview(imageSrc);
+    classifyImage(imageSrc);
+    setWebcamOpen(false);
+  }, [webcamRef]);
+
+  const toggleCamera = () => {
+    setIsFrontCamera((prev) => !prev);
+  };
+
+  // Handle uploading image logic
   const handleUploadImage = async () => {
     setIsItemLoading(true);
     try {
@@ -169,6 +190,7 @@ export default function Home() {
     }
   };
 
+  // Handle adding an item
   const handleAddItem = async () => {
     setIsItemLoading(true);
     try {
@@ -185,13 +207,10 @@ export default function Home() {
   };
 
   const handleSelectPrediction = async () => {
-    console.log("Starting to select predictions...");
     setIsItemLoading(true);
     try {
       const imageUrl = await uploadImage(file);
-      console.log("Image uploaded, URL:", imageUrl);
       for (const selectedClassName of selectedPredictions) {
-        console.log("Adding item:", selectedClassName);
         await addItem(selectedClassName, imageUrl);
       }
       setSelectedPredictions([]);
@@ -200,7 +219,6 @@ export default function Home() {
       console.error("Error during prediction selection:", error);
     } finally {
       setIsItemLoading(false);
-      console.log("Finished selecting predictions.");
     }
   };
 
@@ -208,17 +226,6 @@ export default function Home() {
     setSelectedPredictions((prevSelected) =>
       isChecked ? [...prevSelected, className] : prevSelected.filter((item) => item !== className)
     );
-  };
-
-  const handleCapture = useCallback(() => {
-    const imageSrc = webcamRef.current.getScreenshot();
-    setImagePreview(imageSrc);
-    classifyImage(imageSrc);
-    setWebcamOpen(false);
-  }, [webcamRef]);
-
-  const toggleCamera = () => {
-    setIsFrontCamera((prev) => !prev);
   };
 
   const removeItem = async (item) => {
@@ -254,6 +261,7 @@ export default function Home() {
     }
   };
 
+  // Handle editing an item
   const editItem = async (item, newName) => {
     setIsItemLoading(true);
     try {
@@ -293,7 +301,7 @@ export default function Home() {
     }, 300),
     [inventory]
   );
-  
+
   useEffect(() => {
     debouncedSearch(searchQuery);
   }, [searchQuery, debouncedSearch]);
@@ -306,10 +314,11 @@ export default function Home() {
         setUser(null);
       }
     });
-  
-    return () => unsubscribe();
-  }, []);  
 
+    return () => unsubscribe();
+  }, []);
+
+  // Handle opening and closing modals
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
 
@@ -326,6 +335,7 @@ export default function Home() {
   const handleWebcamOpen = () => setWebcamOpen(true);
   const handleWebcamClose = () => setWebcamOpen(false);
 
+  // Handle editing item action
   const handleEditItem = async () => {
     setIsItemLoading(true);
     try {
@@ -348,46 +358,43 @@ export default function Home() {
   const stripMarkdown = (text) => {
     return text.replace(/##\s*/g, '')  // Removes '##' at the start of the text
       .replace(/\*\*/g, '') // Removes "**" from the text
-      .replace(/\*/g, '');  
+      .replace(/\*/g, '');
   };
-  
 
   const getRecipeSuggestions = async () => {
-    console.log("Fetching recipes...");
     setIsRecipeLoading(true);
     try {
       const ingredients = inventory.map(item => item.name);
-      console.log("Ingredients:", ingredients);
       const response = await fetch('/api/get-recipes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ingredients }),
       });
-  
+
       if (!response.ok) {
         throw new Error(`Error: ${response.statusText}`);
       }
-  
+
       const data = await response.json();
       const processedRecipes = Array.isArray(data.recipes) ? data.recipes.map(recipe => stripMarkdown(recipe)) : [stripMarkdown(data.recipes)];
       setRecipes(processedRecipes || []);
       setHasFetchedRecipes(true);
       setRecipesFetched(true);
-      console.log("Recipes fetched successfully.");
     } catch (error) {
       console.error("Failed to fetch recipe suggestions:", error);
       alert(`Failed to fetch recipe suggestions: ${error.message}`);
     } finally {
       setIsRecipeLoading(false);
-      console.log("Recipe fetching completed.");
+      setIsItemLoading(false);  // Ensure buttons are re-enabled
     }
   };
 
   const generateNewRecipeSuggestions = async () => {
-    setRecipes([]); 
-    await getRecipeSuggestions(); 
+    setRecipes([]);
+    await getRecipeSuggestions();
+    setIsItemLoading(false);  // Ensure buttons are re-enabled
   };
-  
+
   if (!user) {
     return <SignIn />;
   }
@@ -419,9 +426,9 @@ export default function Home() {
                 },
                 color: "#000000",
                 textTransform: "none",
-                boxShadow: "0 1.4px 1px 1px rgba(0, 0, 0, 0.2)", 
-                borderRadius: 2, 
-                padding: "6px 16px", 
+                boxShadow: "0 1.4px 1px 1px rgba(0, 0, 0, 0.2)",
+                borderRadius: 2,
+                padding: "6px 16px",
               }}
             >
               Logout
@@ -529,7 +536,7 @@ export default function Home() {
                 disabled={isRecipeLoading}
                 sx={{
                   bgcolor: "#E98074",
-                  color: "#000000", 
+                  color: "#000000",
                   '&:hover': {
                     backgroundColor: "#978873",
                   },
@@ -555,7 +562,16 @@ export default function Home() {
               </Button>
             )}
           </Box>
-          
+
+          {analyzing && (
+            <Box display="flex" alignItems="center" mt={2}>
+              <CircularProgress size={24} />
+              <Typography variant="body1" sx={{ ml: 2 }}>
+                Analyzing the image, please wait...
+              </Typography>
+            </Box>
+          )}
+
           {/* Display recipes right under the buttons */}
           <Box sx={{ width: '100%', mt: -2 }}>
             {Array.isArray(recipes) && recipes.map((recipe, index) => (
@@ -601,6 +617,239 @@ export default function Home() {
 
         </Container>
       </Box>
+
+      {/* Modals for Add, Edit, Upload, Webcam, and Predictions */}
+
+      <Modal open={open} onClose={handleClose}>
+        <Box
+          position="absolute"
+          top="50%"
+          left="50%"
+          width={isMobile ? '90%' : 400}
+          bgcolor="background.paper"
+          boxShadow={24}
+          p={4}
+          display="flex"
+          flexDirection="column"
+          gap={3}
+          sx={{
+            transform: "translate(-50%, -50%)",
+            borderRadius: 2,
+          }}
+        >
+          <Typography variant="h6" color="#000000">Add Item</Typography>
+          <TextField
+            label="Item Name"
+            value={itemName}
+            onChange={(e) => setItemName(e.target.value)}
+            fullWidth
+          />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleAddItem}
+            sx={{
+              bgcolor: "#E98074",
+              '&:hover': {
+                backgroundColor: "#C7B198",
+              },
+            }}
+          >
+            Add
+          </Button>
+        </Box>
+      </Modal>
+
+      <Modal open={uploadOpen} onClose={handleUploadClose}>
+        <Box
+          position="absolute"
+          top="50%"
+          left="50%"
+          width={isMobile ? '90%' : 400}
+          bgcolor="background.paper"
+          boxShadow={24}
+          p={4}
+          display="flex"
+          flexDirection="column"
+          gap={3}
+          sx={{
+            transform: "translate(-50%, -50%)",
+            borderRadius: 2,
+          }}
+        >
+          <Typography variant="h6" color="#000000">Upload Image</Typography>
+          <input
+            accept="image/*"
+            type="file"
+            onChange={handleFileChange}
+            style={{ marginTop: 10 }}
+          />
+          {imagePreview && (
+            <img src={imagePreview} alt="Preview" style={{ width: '100%', height: 'auto', marginTop: 10 }} />
+          )}
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleUploadImage}
+            sx={{
+              bgcolor: "#E98074",
+              '&:hover': {
+                backgroundColor: "#C7B198",
+              },
+            }}
+          >
+            Upload
+          </Button>
+        </Box>
+      </Modal>
+
+      <Modal open={webcamOpen} onClose={handleWebcamClose}>
+        <Box
+          position="absolute"
+          top="50%"
+          left="50%"
+          width={isMobile ? '90%' : 400}
+          bgcolor="background.paper"
+          boxShadow={24}
+          p={4}
+          display="flex"
+          flexDirection="column"
+          gap={3}
+          sx={{
+            transform: "translate(-50%, -50%)",
+            borderRadius: 2,
+          }}
+        >
+          <Typography variant="h6" color="#000000">Capture Image</Typography>
+          <Webcam
+            audio={false}
+            ref={webcamRef}
+            screenshotFormat="image/jpeg"
+            width="100%"
+            videoConstraints={{ facingMode: isFrontCamera ? "user" : "environment" }} // Update facingMode
+            onUserMediaError={(error) => console.error("Webcam error:", error)}
+          />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={toggleCamera} // Add toggle camera button
+            sx={{
+              bgcolor: "#E98074",
+              '&:hover': {
+                backgroundColor: "#C7B198",
+              },
+            }}
+          >
+            {isFrontCamera ? "Switch to Rear Camera" : "Switch to Front Camera"}
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleCapture}
+            sx={{
+              bgcolor: "#E98074",
+              '&:hover': {
+                backgroundColor: "#C7B198",
+              },
+            }}
+          >
+            Capture
+          </Button>
+        </Box>
+      </Modal>
+
+      <Modal open={editOpen} onClose={handleEditClose}>
+        <Box
+          position="absolute"
+          top="50%"
+          left="50%"
+          width={isMobile ? '90%' : 400}
+          bgcolor="background.paper"
+          boxShadow={24}
+          p={4}
+          display="flex"
+          flexDirection="column"
+          gap={3}
+          sx={{
+            transform: "translate(-50%, -50%)",
+            borderRadius: 2,
+          }}
+        >
+          <Typography variant="h6" color="#000000">Edit Item</Typography>
+          <TextField
+            label="New Item Name"
+            value={editItemName}
+            onChange={(e) => setEditItemName(e.target.value)}
+            fullWidth
+            InputProps={{
+              style: {
+                color: 'black',
+              },
+            }}
+          />
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleEditItem}
+            sx={{
+              bgcolor: "#E98074",
+              '&:hover': {
+                backgroundColor: "#C7B198",
+              },
+            }}
+          >
+            Save
+          </Button>
+        </Box>
+      </Modal>
+
+      <Modal open={predictionModalOpen} onClose={() => setPredictionModalOpen(false)}>
+        <Box
+          position="absolute"
+          top="50%"
+          left="50%"
+          width={isMobile ? '90%' : 400}
+          bgcolor="background.paper"
+          boxShadow={24}
+          p={4}
+          display="flex"
+          flexDirection="column"
+          gap={3}
+          sx={{
+            transform: "translate(-50%, -50%)",
+            borderRadius: 2,
+          }}
+        >
+          <Typography variant="h6" color="#000000">Select Correct Items</Typography>
+          {predictions.map((prediction, index) => (
+            <FormControlLabel
+              key={index}
+              control={
+                <Checkbox
+                  checked={selectedPredictions.includes(prediction.className)}
+                  onChange={(e) => handlePredictionChange(prediction.className, e.target.checked)}
+                  color="primary"
+                />
+              }
+              label={`${prediction.className} (${(prediction.probability * 100).toFixed(2)}%)`}
+            />
+          ))}
+          <Button
+            variant="contained"
+            color="primary"
+            onClick={handleSelectPrediction}
+            sx={{
+              bgcolor: "#E98074",
+              '&:hover': {
+                backgroundColor: "#C7B198",
+              },
+            }}
+          >
+            Confirm Selection
+          </Button>
+        </Box>
+      </Modal>
+
     </ThemeProvider>
   );
 }
