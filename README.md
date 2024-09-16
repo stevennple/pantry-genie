@@ -1,3 +1,7 @@
+# Add and manage items in your pantry with the help of AI!
+- Features a dynamic inventory management & AI-powered recipe suggestion system (Gemini 1.5 Flash API) that tailors meals based on pantry items
+- Has added ability of pantry item detection (Tensorflow's COCO SSD model)
+
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
 ## Getting Started
