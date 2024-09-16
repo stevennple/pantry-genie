@@ -1,4 +1,4 @@
-# Add and manage items in your pantry with the help of AI!
+## Add and manage items in your pantry with the help of AI!
 - Features a dynamic inventory management & AI-powered recipe suggestion system (Gemini 1.5 Flash API) that tailors meals based on pantry items
 - Has added ability of pantry item detection (Tensorflow's COCO SSD model)
 
