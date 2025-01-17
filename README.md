@@ -1,40 +1,81 @@
-## Add and manage items in your pantry with the help of AI!
-- Features a dynamic inventory management & AI-powered recipe suggestion system (Gemini 1.5 Flash API) that tailors meals based on pantry items
-- Can detect user's pantry items using their webcam/mobile camera (Tensorflow's COCO SSD model)
+# Pantry Genie
 
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+Pantry Genie is an AI-powered kitchen assistant that helps you manage your pantry inventory and discover recipes based on what you have on hand. Using advanced AI technology and computer vision, it makes cooking and pantry management easier than ever!
+
+## Features
+- **Smart Pantry Management:** Easily add, update, and track your pantry items
+- **AI-Powered Recipe Suggestions:** Get personalized recipe recommendations using Gemini 1.5 Flash API
+- **Computer Vision Integration:** Detect pantry items using your device's camera with TensorFlow's COCO SSD model
+- **Real-time Updates:** Dynamic inventory management system
+- **User-Friendly Interface:** Clean, modern UI built with Material-UI
 
 ## Getting Started
+### Prerequisites
+- Node.js (Latest LTS version recommended)
+- npm or yarn package manager
+- A modern web browser
+- Camera access for item detection feature
 
-First, run the development server:
+## Installation
+1. Clone the repository:
+```bash
+git clone https://github.com/stevennple/pantry-genie.git
+cd pantry-genie
+```
 
+2. Install dependencies:
+```bash
+npm install
+# or
+yarn install
+```
+
+3. Set up environment variables:
+Create a .env file in the root directory and add your API keys:
+```code
+GOOGLE_AI_API_KEY=your_gemini_api_key
+FIREBASE_API_KEY=your_firebase_key
+```
+
+4. Start the development server:
 ```bash
 npm run dev
 # or
 yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+5. Open http://localhost:3000 in your browser
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+## Tech Stack
+- **Frontend Framework:** Next.js 14, React 18
+- **UI Components:** Material-UI (MUI)
+- **AI/ML:**
+Google's Generative AI (Gemini 1.5)
+TensorFlow.js
+COCO SSD Model
+- **Backend Services:** Firebase
+- **Authentication:** Firebase Auth
+- **Database:** Firebase Realtime Database
+- Styling:** CSS, Emotion
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+## Dependencies
+Key dependencies include:
+- google/generative-ai: ^0.16.0
+- @tensorflow-models/coco-ssd: ^2.2.3
+- @mui/material: ^5.16.6
+- firebase: ^10.12.5
+- react-webcam: ^7.2.0
+  
+## Usage
+1. Adding Items:
+- Use your device's camera to scan items
+- Manually input items into your pantry
 
-## Learn More
+2. Getting Recipe Suggestions:
+- View AI-generated recipe suggestions based on your pantry items
+- Filter recipes by dietary preferences and cuisine types
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+3. Managing Inventory:
+- Track item quantities
+- Set expiration date reminders
+- Remove consumed items
